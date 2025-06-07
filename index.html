@@ -22,7 +22,7 @@
         #loading-spinner, #error-message, #high-score-form, #high-scores-list { display: none;}
         .spinner { border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s ease infinite; margin: 20px auto;}
         @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);}}
-        .btn-difficulty.selected-difficulty { outline: 3px solid #facc15; box-shadow: 0 0 0 4px rgba(250,204,21,0.5);}
+        .btn-difficulty.selected-difficulty, .btn-category.selected-difficulty { outline: 3px solid #facc15; box-shadow: 0 0 0 4px rgba(250,204,21,0.5);}
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-700 text-slate-100">
@@ -41,6 +41,16 @@
                     <button data-difficulty="Fácil" class="btn btn-difficulty bg-green-500 hover:bg-green-600 text-white px-3 py-2 sm:px-4 text-sm sm:text-base">Fácil</button>
                     <button data-difficulty="Difícil" class="btn btn-difficulty bg-sky-500 hover:bg-sky-600 text-white px-3 py-2 sm:px-4 text-sm sm:text-base selected-difficulty">Difícil</button>
                     <button data-difficulty="Fodão" class="btn btn-difficulty bg-red-500 hover:bg-red-600 text-white px-3 py-2 sm:px-4 text-sm sm:text-base">Fodão</button>
+                </div>
+            </div>
+            <div class="mb-6">
+                <p class="text-slate-300 mb-3 text-center font-semibold">Escolha a categoria:</p>
+                <div id="category-select-container" class="flex justify-center space-x-2 sm:space-x-3">
+                    <button data-category="História" class="btn btn-category bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-3 py-2 sm:px-4 text-sm sm:text-base selected-difficulty">História</button>
+                    <button data-category="Geografia" class="btn btn-category bg-green-400 hover:bg-green-500 text-slate-900 px-3 py-2 sm:px-4 text-sm sm:text-base">Geografia</button>
+                    <button data-category="Literatura" class="btn btn-category bg-purple-400 hover:bg-purple-500 text-slate-900 px-3 py-2 sm:px-4 text-sm sm:text-base">Literatura</button>
+                    <button data-category="Ciência" class="btn btn-category bg-blue-400 hover:bg-blue-500 text-slate-900 px-3 py-2 sm:px-4 text-sm sm:text-base">Ciência</button>
+                    <button data-category="Artes" class="btn btn-category bg-pink-400 hover:bg-pink-500 text-slate-900 px-3 py-2 sm:px-4 text-sm sm:text-base">Artes</button>
                 </div>
             </div>
             <p class="mb-6 text-slate-300 text-center">Pronto para o desafio? Clique abaixo para começar.</p>
@@ -95,6 +105,7 @@
     </div>
 
     <script type="module">
+        // --- Firebase e autenticação (mantém igual ao seu original) ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, getDocs, limit, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -138,51 +149,85 @@
         const TOTAL_QUESTIONS = 10;
         let selectedDifficulty = 'Difícil';
 
-        // --- BUSCA PERGUNTAS DA API OPENTDB ---
-        async function fetchQuestions(difficulty) {
-            initialLoadingSpinner.style.display = 'block';
-            startGameBtn.classList.add('disabled');
-            const apiDifficulty = {
-                'Fácil': 'easy',
-                'Difícil': 'medium',
-                'Fodão': 'hard'
-            }[difficulty] || 'medium';
+        // --- Categoria (NOVO) ---
+        let selectedCategory = 'História';
+        document.querySelectorAll('.btn-category').forEach(button => {
+            button.addEventListener('click', () => {
+                selectedCategory = button.dataset.category;
+                document.querySelectorAll('.btn-category').forEach(btn => btn.classList.remove('selected-difficulty'));
+                button.classList.add('selected-difficulty');
+            });
+        });
 
-            try {
-                const resp = await fetch(`https://opentdb.com/api.php?amount=${TOTAL_QUESTIONS}&type=multiple&encode=url3986&difficulty=${apiDifficulty}`);
-                const data = await resp.json();
+        // --- Palavras-chave por categoria (NOVO) ---
+        const randomKeywords = {
+            "História": [
+                "Independência do Brasil", "Guerra Fria", "Revolução Francesa", "Era Vargas", "Roma Antiga"
+            ],
+            "Geografia": [
+                "Cordilheira dos Andes", "Oceano Atlântico", "Deserto do Saara", "Clima Equatorial", "Rio Amazonas"
+            ],
+            "Literatura": [
+                "Machado de Assis", "Dom Quixote", "Clarice Lispector", "Fernando Pessoa", "Os Lusíadas"
+            ],
+            "Ciência": [
+                "Evolução", "DNA", "Isaac Newton", "Teoria da Relatividade", "Fotossíntese"
+            ],
+            "Artes": [
+                "Leonardo da Vinci", "Cubismo", "Mona Lisa", "Pablo Picasso", "Impressionismo"
+            ]
+        };
 
-                if (!data.results || data.results.length === 0) {
-                    throw new Error("Nenhuma pergunta encontrada.");
-                }
-
-                const formattedQuestions = data.results.map(q => {
-                    const decode = s => decodeURIComponent(s.replace(/\+/g, ' '));
-                    const options = [...q.incorrect_answers.map(decode)];
-                    const correctIndex = Math.floor(Math.random() * (options.length + 1));
-                    options.splice(correctIndex, 0, decode(q.correct_answer));
-                    return {
-                        question: decode(q.question),
-                        options,
-                        correctAnswer: correctIndex,
-                        category: decode(q.category)
-                    };
-                });
-
-                initialLoadingSpinner.style.display = 'none';
-                startGameBtn.classList.remove('disabled');
-                return formattedQuestions;
-
-            } catch (error) {
-                console.error("Erro ao buscar perguntas da API:", error);
-                initialErrorMessage.textContent = `Erro ao carregar perguntas online: ${error.message}.`;
-                initialErrorMessage.style.display = 'block';
-                initialLoadingSpinner.style.display = 'none';
-                startGameBtn.classList.remove('disabled');
-                throw error;
+        // --- Função utilitária para embaralhar ---
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
             }
+            return array;
         }
 
+        // --- BUSCA PERGUNTAS DA WIKIPEDIA (NOVO) ---
+        async function fetchQuestions(category) {
+            initialLoadingSpinner.style.display = 'block';
+            startGameBtn.classList.add('disabled');
+            const perguntas = [];
+
+            for (let i = 0; i < TOTAL_QUESTIONS; i++) {
+                const termos = randomKeywords[category];
+                const termo = termos[Math.floor(Math.random() * termos.length)];
+                const query = encodeURIComponent(termo);
+
+                const url = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${query}&format=json&origin=*`;
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.query.search.length > 0) {
+                        const resultado = data.query.search[0];
+                        const opcoes = shuffleArray([
+                            category,
+                            ...Object.keys(randomKeywords).filter(c => c !== category).sort(() => 0.5 - Math.random()).slice(0, 3)
+                        ]);
+                        perguntas.push({
+                            question: `Sobre "${resultado.title}": ${resultado.snippet.replace(/(<([^>]+)>)/gi, "")} ... Qual categoria esse assunto pertence?`,
+                            options: opcoes,
+                            correctAnswer: opcoes.indexOf(category),
+                            category: category
+                        });
+                    }
+                } catch (e) {
+                    // pode logar erro se quiser
+                }
+            }
+            initialLoadingSpinner.style.display = 'none';
+            startGameBtn.classList.remove('disabled');
+            return perguntas;
+        }
+
+        // --- Firebase e autenticação (mantém igual ao seu original) ---
         async function initializeFirebase() {
             try {
                 app = initializeApp(firebaseConfig);
@@ -245,7 +290,7 @@
 
         async function startGame() {
             try {
-                const fetchedQuestions = await fetchQuestions(selectedDifficulty);
+                const fetchedQuestions = await fetchQuestions(selectedCategory);
                 if (!fetchedQuestions || fetchedQuestions.length === 0) return;
                 questions = fetchedQuestions;
                 currentQuestionIndex = 0;
