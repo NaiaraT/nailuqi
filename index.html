@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QI Master - Jogo de Perguntas e Respostas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            color: #1e293b; /* Dark slate text */
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-primary {
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb; /* Blue-600 */
+        }
+        .btn-secondary {
+            background-color: #e5e7eb; /* Gray-200 */
+            color: #374151; /* Gray-700 */
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db; /* Gray-300 */
+        }
+        .option-btn {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            border: 1px solid #d1d5db; /* Gray-300 */
+        }
+        .option-btn.correct {
+            background-color: #10b981; /* Emerald-500 */
+            color: white;
+            border-color: #059669; /* Emerald-600 */
+        }
+        .option-btn.incorrect {
+            background-color: #ef4444; /* Red-500 */
+            color: white;
+            border-color: #dc2626; /* Red-600 */
+        }
+        .disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        #loading-spinner, #error-message, #high-score-form, #high-scores-list {
+            display: none; /* Hidden by default */
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3b82f6;
+            animation: spin 1s ease infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .btn-difficulty.selected-difficulty {
+            outline: 3px solid #facc15; /* Yellow-400 for selection */
+            box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.5); /* Yellow-400 with opacity */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-700 text-slate-100">
+    <div class="container">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-sky-400">QI Master</h1>
+            <p class="text-slate-300">Teste os seus conhecimentos!</p>
+            <p class="text-xs text-slate-400 mt-2">User ID: <span id="user-id-display">A autenticar...</span></p>
+        </header>
+
+        <div id="start-screen" class="card bg-slate-800">
+            <h2 class="text-2xl font-semibold mb-4 text-sky-300">Bem-vindo!</h2>
+            
+            <div class="mb-6">
+                <p class="text-slate-300 mb-3 text-center font-semibold">Escolha o nível de dificuldade:</p>
+                <div class="flex justify-center space-x-2 sm:space-x-3">
+                    <button data-difficulty="Fácil" class="btn btn-difficulty bg-green-500 hover:bg-green-600 text-white px-3 py-2 sm:px-4 text-sm sm:text-base">Fácil</button>
+                    <button data-difficulty="Difícil" class="btn btn-difficulty bg-sky-500 hover:bg-sky-600 text-white px-3 py-2 sm:px-4 text-sm sm:text-base selected-difficulty">Difícil</button>
+                    <button data-difficulty="Fodão" class="btn btn-difficulty bg-red-500 hover:bg-red-600 text-white px-3 py-2 sm:px-4 text-sm sm:text-base">Fodão</button>
+                </div>
+            </div>
+            
+            <p class="mb-6 text-slate-300 text-center">Pronto para o desafio? Clique abaixo para começar.</p>
+            <button id="start-game-btn" class="btn btn-primary w-full">Começar Jogo</button>
+            <div id="initial-loading-spinner" class="spinner my-4" style="display: none;"></div>
+            <div id="initial-error-message" class="text-red-400 my-4" style="display: none;"></div>
+        </div>
+
+        <div id="game-screen" class="card bg-slate-800" style="display: none;">
+            <div class="flex justify-between items-center mb-4">
+                <span id="question-category" class="text-sm font-semibold bg-sky-500 text-white px-3 py-1 rounded-full">Categoria</span>
+                <span id="score" class="text-lg font-bold text-amber-400">Pontuação: 0</span>
+            </div>
+            <div id="question-container" class="mb-6">
+                <p id="question-text" class="text-xl mb-4 text-slate-200">A carregar pergunta...</p>
+                <div id="options-container">
+                    <!-- As opções serão inseridas dinamicamente aqui -->
+                </div>
+            </div>
+            <div class="flex justify-between items-center">
+                <span id="question-counter" class="text-sm text-slate-400">Pergunta 1 / 10</span>
+                <button id="next-question-btn" class="btn btn-secondary" style="display: none;">Próxima Pergunta</button>
+            </div>
+            <div id="feedback-message" class="mt-4 text-center font-semibold"></div>
+        </div>
+
+        <div id="end-screen" class="card bg-slate-800" style="display: none;">
+            <h2 class="text-2xl font-semibold mb-4 text-sky-300">Fim de Jogo!</h2>
+            <p id="final-score" class="text-xl mb-6 text-amber-400">A sua pontuação final é: 0</p>
+            
+            <div id="high-score-form" class="mb-6">
+                <label for="player-name" class="block mb-2 text-sm font-medium text-slate-300">Digite o seu nome para guardar a pontuação:</label>
+                <input type="text" id="player-name" class="w-full p-2 border border-slate-600 rounded-md bg-slate-700 text-slate-200 focus:ring-sky-500 focus:border-sky-500" placeholder="O seu Nome">
+                <button id="save-score-btn" class="btn btn-primary w-full mt-3">Guardar Pontuação</button>
+                <p id="save-status" class="text-sm mt-2 text-center"></p>
+            </div>
+            
+            <button id="play-again-btn" class="btn btn-primary w-full mb-4">Jogar Novamente</button>
+        </div>
+
+        <div id="high-scores-section" class="card bg-slate-800 mt-8">
+            <h3 class="text-xl font-semibold mb-4 text-sky-300">🏆 Melhores Pontuações 🏆</h3>
+            <div id="high-scores-loading-spinner" class="spinner" style="display: none;"></div>
+            <ul id="high-scores-list" class="space-y-2 text-slate-300">
+                <!-- As melhores pontuações serão listadas aqui -->
+            </ul>
+             <p id="no-high-scores" class="text-slate-400" style="display:none;">Ainda não há pontuações registadas.</p>
+        </div>
+
+        <!-- Modal de Mensagem -->
+        <div id="message-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-sm w-full">
+                <h4 id="modal-title" class="text-lg font-semibold mb-3 text-sky-400">Mensagem</h4>
+                <p id="modal-message" class="text-slate-300 mb-4"></p>
+                <button id="modal-close-btn" class="btn btn-primary w-full">OK</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, getDocs, limit, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'qi-master-default-app-id';
+
+        let app;
+        let auth;
+        let db;
+        let userId;
+        let isAuthReady = false;
+
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endScreen = document.getElementById('end-screen');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const nextQuestionBtn = document.getElementById('next-question-btn');
+        const playAgainBtn = document.getElementById('play-again-btn');
+        const questionTextEl = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        const questionCounterEl = document.getElementById('question-counter');
+        const questionCategoryEl = document.getElementById('question-category');
+        const feedbackMessageEl = document.getElementById('feedback-message');
+        const highScoreForm = document.getElementById('high-score-form');
+        const playerNameInput = document.getElementById('player-name');
+        const saveScoreBtn = document.getElementById('save-score-btn');
+        const saveStatusEl = document.getElementById('save-status');
+        const highScoresListEl = document.getElementById('high-scores-list');
+        const highScoresLoadingSpinner = document.getElementById('high-scores-loading-spinner');
+        const noHighScoresMsg = document.getElementById('no-high-scores');
+        const initialLoadingSpinner = document.getElementById('initial-loading-spinner');
+        const initialErrorMessage = document.getElementById('initial-error-message');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const difficultyButtons = document.querySelectorAll('.btn-difficulty');
+        const messageModal = document.getElementById('message-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        const TOTAL_QUESTIONS = 10;
+        let selectedDifficulty = 'Difícil'; 
+
+        // --- BANCO DE PERGUNTAS INTERNO EXPANDIDO ---
+        const questionBank = {
+            'Fácil': [
+                { question: "Qual é a capital de Portugal?", options: ["Porto", "Lisboa", "Faro", "Coimbra"], correctAnswer: 1, category: "Geografia" },
+                { question: "Quantos planetas existem no nosso Sistema Solar?", options: ["7", "8", "9", "10"], correctAnswer: 1, category: "Ciência" },
+                { question: "Quem pintou a Mona Lisa?", options: ["Vincent van Gogh", "Pablo Picasso", "Leonardo da Vinci", "Michelangelo"], correctAnswer: 2, category: "Artes" },
+                { question: "Qual é o maior oceano da Terra?", options: ["Atlântico", "Índico", "Ártico", "Pacífico"], correctAnswer: 3, category: "Geografia" },
+                { question: "Qual animal é conhecido como o 'Rei da Selva'?", options: ["Tigre", "Leão", "Elefante", "Urso"], correctAnswer: 1, category: "Natureza" },
+                { question: "Em que ano o homem pisou na Lua pela primeira vez?", options: ["1969", "1972", "1965", "1980"], correctAnswer: 0, category: "História" },
+                { question: "Qual é a cor do céu num dia limpo?", options: ["Verde", "Amarelo", "Azul", "Laranja"], correctAnswer: 2, category: "Conhecimentos Gerais" },
+                { question: "Quantos lados tem um triângulo?", options: ["2", "3", "4", "5"], correctAnswer: 1, category: "Matemática" },
+                { question: "Qual é o principal ingrediente do pão?", options: ["Açúcar", "Sal", "Farinha", "Ovos"], correctAnswer: 2, category: "Culinária" },
+                { question: "Quem escreveu 'Dom Quixote'?", options: ["William Shakespeare", "Miguel de Cervantes", "Machado de Assis", "Homero"], correctAnswer: 1, category: "Literatura" },
+                { question: "Que país tem o formato de uma bota?", options: ["Espanha", "Grécia", "Itália", "Portugal"], correctAnswer: 2, category: "Geografia" },
+                { question: "Qual é a moeda oficial do Japão?", options: ["Yuan", "Won", "Yen", "Dólar"], correctAnswer: 2, category: "Conhecimentos Gerais" },
+                { question: "Qual processo transforma a água em gelo?", options: ["Evaporação", "Condensação", "Solidificação", "Fervura"], correctAnswer: 2, category: "Ciência" },
+                { question: "Quem é o super-herói conhecido como o 'Homem de Aço'?", options: ["Batman", "Super-Homem", "Hulk", "Homem-Aranha"], correctAnswer: 1, category: "Cultura Pop" },
+                { question: "Qual é o rio mais longo do mundo?", options: ["Rio Nilo", "Rio Amazonas", "Rio Mississipi", "Rio Yangtzé"], correctAnswer: 1, category: "Geografia" },
+                { question: "Quantos dias tem um ano bissexto?", options: ["364", "365", "366", "367"], correctAnswer: 2, category: "Conhecimentos Gerais" },
+                { question: "Em que continente fica o Egito?", options: ["Ásia", "Europa", "África", "Oceania"], correctAnswer: 2, category: "Geografia" },
+                { question: "Qual é o metal mais abundante na crosta terrestre?", options: ["Ferro", "Cobre", "Ouro", "Alumínio"], correctAnswer: 3, category: "Ciência" },
+                { question: "Qual instrumento musical tem 88 teclas?", options: ["Violão", "Violino", "Piano", "Flauta"], correctAnswer: 2, category: "Música" },
+                { question: "Quem foi a primeira mulher a voar sozinha sobre o Atlântico?", options: ["Marie Curie", "Amelia Earhart", "Valentina Tereshkova", "Rosa Parks"], correctAnswer: 1, category: "História" },
+            ],
+            'Difícil': [
+                { question: "Qual é o elemento químico cujo símbolo é 'W'?", options: ["Tungsténio", "Prata", "Ouro", "Ferro"], correctAnswer: 0, category: "Ciência" },
+                { question: "Em que ano caiu o Muro de Berlim?", options: ["1987", "1989", "1991", "1993"], correctAnswer: 1, category: "História" },
+                { question: "Quem foi o primeiro Imperador de Roma?", options: ["Júlio César", "Nero", "Augusto", "Calígula"], correctAnswer: 2, category: "História" },
+                { question: "Qual é a montanha mais alta do Japão?", options: ["Monte Everest", "Monte Kilimanjaro", "Monte Fuji", "Monte K2"], correctAnswer: 2, category: "Geografia" },
+                { question: "Qual destes filósofos foi o mentor de Alexandre, o Grande?", options: ["Platão", "Sócrates", "Aristóteles", "Diógenes"], correctAnswer: 2, category: "História" },
+                { question: "Qual é a velocidade da luz no vácuo (aproximadamente)?", options: ["300.000 km/h", "300.000 km/s", "150.000 km/s", "500.000 km/s"], correctAnswer: 1, category: "Física" },
+                { question: "Quem escreveu a obra 'Cem Anos de Solidão'?", options: ["Jorge Luis Borges", "Julio Cortázar", "Mario Vargas Llosa", "Gabriel García Márquez"], correctAnswer: 3, category: "Literatura" },
+                { question: "Qual país é o maior produtor de café do mundo?", options: ["Colômbia", "Vietname", "Brasil", "Etiópia"], correctAnswer: 2, category: "Geografia" },
+                { question: "O que mede a Escala Richter?", options: ["Velocidade do vento", "Intensidade de terramotos", "Nível de pH", "Pressão atmosférica"], correctAnswer: 1, category: "Ciência" },
+                { question: "Qual o nome do processo pelo qual as plantas produzem o seu próprio alimento?", options: ["Respiração", "Transpiração", "Fotossíntese", "Germinação"], correctAnswer: 2, category: "Biologia" },
+                { question: "Qual cidade era a capital do Império Bizantino?", options: ["Roma", "Atenas", "Constantinopla", "Alexandria"], correctAnswer: 2, category: "História" },
+                { question: "O que é a 'matéria escura' no contexto do universo?", options: ["Poeira cósmica", "Uma forma de matéria que não emite luz", "O centro de um buraco negro", "Antimatéria"], correctAnswer: 1, category: "Astrofísica" },
+                { question: "Qual compositor clássico ficou surdo no final da sua vida?", options: ["Mozart", "Bach", "Beethoven", "Chopin"], correctAnswer: 2, category: "Música" },
+                { question: "Na mitologia grega, quem matou a Medusa?", options: ["Hércules", "Teseu", "Perseu", "Aquiles"], correctAnswer: 2, category: "Mitologia" },
+                { question: "A Guerra dos Cem Anos foi travada entre quais reinos?", options: ["Espanha e Portugal", "Inglaterra e França", "Roma e Cartago", "Prússia e Áustria"], correctAnswer: 1, category: "História" },
+                { question: "Qual é o osso mais longo do corpo humano?", options: ["Tíbia", "Úmero", "Fêmur", "Fíbula"], correctAnswer: 2, category: "Biologia" },
+                { question: "Quem é o autor da famosa peça 'Hamlet'?", options: ["Sófocles", "Christopher Marlowe", "William Shakespeare", "Molière"], correctAnswer: 2, category: "Literatura" },
+                { question: "Qual o nome do primeiro satélite artificial lançado pela União Soviética?", options: ["Vostok 1", "Sputnik 1", "Explorer 1", "Luna 1"], correctAnswer: 1, category: "Tecnologia" },
+                { question: "Qual destes artistas é um famoso expoente do Surrealismo?", options: ["Claude Monet", "Salvador Dalí", "Caravaggio", "Rembrandt"], correctAnswer: 1, category: "Artes" },
+                { question: "O que estuda a micologia?", options: ["Micróbios", "Insetos", "Fungos", "Minerais"], correctAnswer: 2, category: "Biologia" },
+            ],
+            'Fodão': [
+                { question: "O que é o 'Paradoxo de Fermi'?", options: ["Um paradoxo sobre a viagem no tempo", "A contradição entre a alta probabilidade de vida extraterrestre e a falta de evidências", "Um problema de lógica sobre conjuntos que se contêm a si mesmos", "Um paradoxo sobre a natureza da consciência"], correctAnswer: 1, category: "Astrofísica" },
+                { question: "Qual foi o supercontinente que existiu antes de Pangeia?", options: ["Gondwana", "Laurásia", "Rodínia", "Colúmbia"], correctAnswer: 2, category: "Geologia" },
+                { question: "No contexto da criptografia, o que é um 'ataque de canal lateral' (side-channel attack)?", options: ["Um ataque que explora falhas no algoritmo matemático", "Um ataque que visa roubar as chaves físicas", "Um ataque baseado em informações obtidas da implementação física do sistema", "Um ataque de negação de serviço"], correctAnswer: 2, category: "Tecnologia" },
+                { question: "A 'Equação do Foguete de Tsiolkovsky' descreve o movimento de veículos que seguem qual princípio básico?", options: ["A lei da gravitação universal", "As leis de Kepler", "O princípio de Bernoulli", "A conservação do momento linear"], correctAnswer: 3, category: "Física" },
+                { question: "Qual destes não é um dos 'Problemas do Prémio Millennium' em matemática?", options: ["A Hipótese de Riemann", "O Problema P versus NP", "A Conjectura de Goldbach", "A Conjectura de Poincaré"], correctAnswer: 2, category: "Matemática" },
+                { question: "Qual é o nome do efeito quântico que permite que uma partícula atravesse uma barreira de potencial, mesmo sem ter energia suficiente?", options: ["Efeito Fotoelétrico", "Efeito Compton", "Emaranhamento Quântico", "Tunelamento Quântico"], correctAnswer: 3, category: "Física Quântica" },
+                { question: "Quem é considerado o 'pai da teoria dos jogos', autor do artigo que a fundou em 1928?", options: ["John Nash", "Alan Turing", "John von Neumann", "Kurt Gödel"], correctAnswer: 2, category: "Ciência/História" },
+                { question: "Na linguística, o que é a 'Hipótese de Sapir-Whorf'?", options: ["Uma teoria sobre a origem da linguagem", "A ideia de que a estrutura de uma língua afeta a cognição dos seus falantes", "Um modelo para a tradução automática", "Uma teoria sobre a aquisição da segunda língua"], correctAnswer: 1, category: "Linguística" },
+                { question: "Qual o nome da primeira sonda espacial a chegar ao espaço interestelar?", options: ["Pioneer 10", "Voyager 2", "Voyager 1", "New Horizons"], correctAnswer: 2, category: "Astronomia" },
+                { question: "Qual obra de Fiódor Dostoiévski explora o tema do niilismo através do personagem Raskólnikov?", options: ["Os Irmãos Karamazov", "O Idiota", "Crime e Castigo", "Demônios"], correctAnswer: 2, category: "Literatura" },
+                { question: "Qual é o único país do mundo cujo nome em inglês começa com a letra 'Q'?", options: ["Quénia", "Qatar", "Quirguistão", "Nenhum"], correctAnswer: 1, category: "Curiosidades" },
+                { question: "O 'Último Teorema de Fermat' foi finalmente provado por qual matemático em 1994?", options: ["Carl Friedrich Gauss", "Leonhard Euler", "Andrew Wiles", "David Hilbert"], correctAnswer: 2, category: "Matemática" },
+                { question: "Qual evento histórico é conhecido como a 'Crise dos Mísseis de Outubro' em Cuba, mas como a 'Crise do Caribe' na Rússia?", options: ["A Invasão da Baía dos Porcos", "A Crise de Suez", "O impasse nuclear de 1962", "A Revolução Cubana"], correctAnswer: 2, category: "História" },
+                { question: "Em termos de computação, qual arquitetura de processador domina o mercado de smartphones?", options: ["x86", "ARM", "MIPS", "PowerPC"], correctAnswer: 1, category: "Tecnologia" },
+                { question: "O 'Gato de Schrödinger' é um experimento mental que ilustra qual princípio da mecânica quântica?", options: ["Princípio da Incerteza", "Superposição", "Emaranhamento", "Dualidade onda-partícula"], correctAnswer: 1, category: "Física Quântica" },
+                { question: "Qual é o animal terrestre mais venenoso do mundo?", options: ["Cobra-real", "Aranha-armadeira", "Escorpião-amarelo", "Sapo-flecha-dourado"], correctAnswer: 3, category: "Biologia" },
+                { question: "A 'Sequência de Fibonacci' aparece frequentemente na natureza. Qual é o próximo número na sequência: 0, 1, 1, 2, 3, 5, 8, ...?", options: ["11", "12", "13", "14"], correctAnswer: 2, category: "Matemática" },
+                { question: "Que pintor holandês é famoso por cortar parte da sua própria orelha?", options: ["Rembrandt", "Vermeer", "Van Gogh", "Bosch"], correctAnswer: 2, category: "Artes" },
+                { question: "O que o acrónimo 'LASER' significa?", options: ["Light Amplification by Stimulated Emission of Radiation", "Light Absorption by Spontaneous Emission of Radiation", "Luminous Activity Stimulated by External Radiation", "Light Amplification by Saturated Energy Reaction"], correctAnswer: 0, category: "Tecnologia" },
+                { question: "Qual o nome do mar que separa a Europa da África?", options: ["Mar Negro", "Mar Vermelho", "Mar Mediterrâneo", "Mar Cáspio"], correctAnswer: 2, category: "Geografia" },
+            ]
+        };
+
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                setLogLevel('debug');
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Utilizador autenticado com UID:", userId);
+                        isAuthReady = true;
+                        userIdDisplay.textContent = userId;
+                        fetchHighScores();
+                    } else {
+                        userId = null;
+                        isAuthReady = false; 
+                        console.log("Utilizador não autenticado.");
+                        userIdDisplay.textContent = "Offline";
+                    }
+                });
+
+                await authenticateUser();
+
+            } catch (error) {
+                console.error("Erro na inicialização do Firebase:", error);
+                showModal("Erro de Inicialização", "Não foi possível conectar aos serviços de pontuação. O jogo funcionará, mas sem ranking online.");
+                userIdDisplay.textContent = "Offline";
+                isAuthReady = true;
+            }
+        }
+        
+        async function authenticateUser() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Erro durante o processo de autenticação:", error);
+                isAuthReady = true;
+                userIdDisplay.textContent = "Offline";
+                showModal("Modo Offline", "Não foi possível autenticar com o servidor. As pontuações não serão guardadas online.");
+            }
+        }
+        
+        function showModal(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            messageModal.style.display = 'flex';
+        }
+
+        modalCloseBtn.addEventListener('click', () => {
+            messageModal.style.display = 'none';
+        });
+
+        difficultyButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                selectedDifficulty = button.dataset.difficulty;
+                difficultyButtons.forEach(btn => btn.classList.remove('selected-difficulty'));
+                button.classList.add('selected-difficulty');
+            });
+        });
+
+        function fetchQuestions(difficulty) {
+            return new Promise((resolve, reject) => {
+                initialLoadingSpinner.style.display = 'block';
+                startGameBtn.classList.add('disabled');
+
+                setTimeout(() => {
+                    try {
+                        const questionPool = questionBank[difficulty];
+                        if (!questionPool) {
+                            throw new Error(`Dificuldade "${difficulty}" não encontrada.`);
+                        }
+
+                        const shuffled = [...questionPool].sort(() => 0.5 - Math.random());
+                        const selectedQuestions = shuffled.slice(0, TOTAL_QUESTIONS);
+                        
+                        initialLoadingSpinner.style.display = 'none';
+                        startGameBtn.classList.remove('disabled');
+                        resolve(selectedQuestions);
+
+                    } catch (error) {
+                        console.error("Erro ao buscar perguntas locais:", error);
+                        initialErrorMessage.textContent = `Erro ao carregar perguntas: ${error.message}.`;
+                        initialErrorMessage.style.display = 'block';
+                        initialLoadingSpinner.style.display = 'none';
+                        startGameBtn.classList.remove('disabled');
+                        reject(error);
+                    }
+                }, 300);
+            });
+        }
+
+        async function startGame() {
+            try {
+                const fetchedQuestions = await fetchQuestions(selectedDifficulty);
+                if (!fetchedQuestions || fetchedQuestions.length === 0) return;
+                
+                questions = fetchedQuestions;
+                currentQuestionIndex = 0;
+                score = 0;
+                scoreEl.textContent = `Pontuação: ${score}`;
+                feedbackMessageEl.textContent = '';
+                startScreen.style.display = 'none';
+                endScreen.style.display = 'none';
+                gameScreen.style.display = 'block';
+                highScoreForm.style.display = 'none'; 
+                saveStatusEl.textContent = '';
+                playerNameInput.value = '';
+                displayQuestion();
+            } catch (error) {
+                showModal("Erro", "Não foi possível iniciar o jogo. " + error.message);
+            }
+        }
+
+        function displayQuestion() {
+            if (currentQuestionIndex >= questions.length) {
+                endGame();
+                return;
+            }
+
+            const currentQuestion = questions[currentQuestionIndex];
+            questionTextEl.textContent = currentQuestion.question;
+            questionCategoryEl.textContent = currentQuestion.category || 'Geral';
+            questionCounterEl.textContent = `Pergunta ${currentQuestionIndex + 1} / ${questions.length}`;
+            optionsContainer.innerHTML = '';
+            feedbackMessageEl.textContent = '';
+            nextQuestionBtn.style.display = 'none';
+
+            currentQuestion.options.forEach((option, index) => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.classList.add('btn', 'option-btn', 'text-left', 'bg-slate-700', 'hover:bg-slate-600', 'text-slate-200');
+                button.addEventListener('click', () => selectAnswer(index));
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function selectAnswer(selectedIndex) {
+            const currentQuestion = questions[currentQuestionIndex];
+            const correct = selectedIndex === currentQuestion.correctAnswer;
+
+            Array.from(optionsContainer.children).forEach((btn, index) => {
+                btn.classList.add('disabled'); 
+                if (index === currentQuestion.correctAnswer) {
+                    btn.classList.add('correct');
+                } else if (index === selectedIndex && !correct) {
+                    btn.classList.add('incorrect');
+                }
+            });
+
+            if (correct) {
+                score += 10;
+                scoreEl.textContent = `Pontuação: ${score}`;
+                feedbackMessageEl.textContent = 'Correto! �';
+                feedbackMessageEl.className = 'mt-4 text-center font-semibold text-green-400';
+            } else {
+                feedbackMessageEl.textContent = 'Incorreto. 🙁';
+                feedbackMessageEl.className = 'mt-4 text-center font-semibold text-red-400';
+            }
+            nextQuestionBtn.style.display = 'block';
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            displayQuestion();
+        }
+
+        function endGame() {
+            gameScreen.style.display = 'none';
+            endScreen.style.display = 'block';
+            finalScoreEl.textContent = `A sua pontuação final é: ${score}`;
+            highScoreForm.style.display = 'block'; 
+            fetchHighScores(); 
+        }
+
+        async function saveHighScore() {
+            if (!userId) {
+                showModal("Função Indisponível", "Não foi possível guardar a sua pontuação porque não está autenticado. Verifique a sua conexão e tente novamente.");
+                return;
+            }
+            const playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                saveStatusEl.textContent = "Por favor, insira o seu nome.";
+                saveStatusEl.className = 'text-sm mt-2 text-center text-yellow-400';
+                return;
+            }
+
+            saveScoreBtn.classList.add('disabled');
+            saveScoreBtn.textContent = 'A guardar...';
+
+            try {
+                const highScoresColPath = `artifacts/${appId}/public/data/quizHighscores`;
+                const highScoresCol = collection(db, highScoresColPath);
+                
+                await addDoc(highScoresCol, {
+                    name: playerName,
+                    score: score,
+                    timestamp: serverTimestamp(), 
+                    userId: userId,
+                    difficulty: selectedDifficulty
+                });
+                saveStatusEl.textContent = "Pontuação guardada com sucesso!";
+                saveStatusEl.className = 'text-sm mt-2 text-center text-green-400';
+                playerNameInput.value = '';
+                highScoreForm.style.display = 'none'; 
+                fetchHighScores(); 
+            } catch (error) {
+                console.error("Erro ao guardar pontuação:", error);
+                saveStatusEl.textContent = "Erro ao guardar. Tente novamente.";
+                saveStatusEl.className = 'text-sm mt-2 text-center text-red-400';
+                showModal("Erro ao Guardar", `Não foi possível guardar a sua pontuação: ${error.message}`);
+            } finally {
+                saveScoreBtn.classList.remove('disabled');
+                saveScoreBtn.textContent = 'Guardar Pontuação';
+            }
+        }
+
+        async function fetchHighScores() {
+            if (!isAuthReady || !db || !userId) {
+                 console.log("FetchHighScores: Auth não pronta, DB não inicializado, ou utilizador offline.");
+                 noHighScoresMsg.textContent = "Ranking online indisponível.";
+                 noHighScoresMsg.style.display = 'block';
+                 highScoresListEl.innerHTML = '';
+                 return;
+            }
+            highScoresLoadingSpinner.style.display = 'block';
+            highScoresListEl.innerHTML = '';
+            noHighScoresMsg.style.display = 'none';
+
+            try {
+                const highScoresColPath = `artifacts/${appId}/public/data/quizHighscores`;
+                const q = query(collection(db, highScoresColPath), limit(50)); 
+                const querySnapshot = await getDocs(q);
+                
+                let scoresData = [];
+                querySnapshot.forEach((doc) => {
+                    scoresData.push(doc.data());
+                });
+
+                scoresData.sort((a, b) => {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+                    const timeA = a.timestamp && a.timestamp.toMillis ? a.timestamp.toMillis() : 0;
+                    const timeB = b.timestamp && b.timestamp.toMillis ? b.timestamp.toMillis() : 0;
+                    return timeB - timeA; 
+                });
+                
+                const topScores = scoresData.slice(0, 10); 
+
+                if (topScores.length === 0) {
+                    noHighScoresMsg.style.display = 'block';
+                } else {
+                    topScores.forEach((data, index) => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'flex justify-between items-center p-2 bg-slate-700 rounded-md';
+                        
+                        let medal = '';
+                        if (index === 0) medal = '🥇 ';
+                        else if (index === 1) medal = '🥈 ';
+                        else if (index === 2) medal = '🥉 ';
+
+                        const difficultyText = data.difficulty ? ` <span class="text-xs text-slate-400">(${data.difficulty})</span>` : '';
+
+                        listItem.innerHTML = `
+                            <span>${medal}${data.name}${difficultyText}</span>
+                            <span class="font-semibold text-amber-300">${data.score} pts</span>
+                        `;
+                        highScoresListEl.appendChild(listItem);
+                    });
+                }
+            } catch (error) {
+                console.error("Erro ao buscar melhores pontuações:", error);
+                noHighScoresMsg.textContent = "Erro ao carregar pontuações.";
+                noHighScoresMsg.style.display = 'block';
+                showModal("Erro no Placar", `Não foi possível carregar as melhores pontuações: ${error.message}`);
+            } finally {
+                highScoresLoadingSpinner.style.display = 'none';
+            }
+        }
+
+        startGameBtn.addEventListener('click', startGame);
+        nextQuestionBtn.addEventListener('click', nextQuestion);
+        playAgainBtn.addEventListener('click', () => {
+            gameScreen.style.display = 'none';
+            endScreen.style.display = 'none';
+            startScreen.style.display = 'block';
+        }); 
+        saveScoreBtn.addEventListener('click', saveHighScore);
+
+        initializeFirebase();
+
+    </script>
+</body>
+</html>
